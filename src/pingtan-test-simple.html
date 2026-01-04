@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>测试绘制功能</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+        #controls {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(0,0,0,0.8); color: white; padding: 15px;
+            border-radius: 5px;
+        }
+        button {
+            background: #4CAF50; color: white; border: none;
+            padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 3px;
+        }
+        button:hover { background: #45a049; }
+        #log {
+            margin-top: 10px; max-height: 200px; overflow-y: auto;
+            font-size: 12px; font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="controls">
+        <button onclick="startDraw()">开始绘制</button>
+        <button onclick="finishDraw()">完成</button>
+        <button onclick="clearDraw()">清除</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5N2UyMjcwOS00MDY1LTQxYjEtYjZjMy00YTU0ZTg1YmJjMWEiLCJpZCI6MjU5LCJzY29wZXMiOlsiYXNyIiwiYXNydy isImdjIl0sImlhdCI6MTcyNzk0MTg2Mn0.VBb7P_3BSfvUKbGihuDEaIZSBJu0PrpxgHiVMAb2EkY';
+
+        const viewer = new Cesium.Viewer('cesiumContainer');
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(119.789, 25.497, 5000)
+        });
+
+        let handler;
+        let points = [];
+        let entities = [];
+        let lines = [];
+        let previewLine = null;
+        let isDrawing = false;
+        let isDragging = false;
+        let draggedPoint = null;
+        let draggedIndex = -1;
+
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML = `<div>[${time}] ${msg}</div>` + logDiv.innerHTML;
+            console.log(msg);
+        }
+
+        function startDraw() {
+            log('开始绘制');
+            isDrawing = true;
+            points = [];
+            entities = [];
+            lines = [];
+
+            if (handler) handler.destroy();
+            handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+            // 禁用右键菜单
+            viewer.scene.canvas.oncontextmenu = (e) => { e.preventDefault(); return false; };
+
+            // 左键按下 - 检查是否点击到点
+            handler.setInputAction((click) => {
+                const pickedObject = viewer.scene.pick(click.position);
+                
+                if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.isPoint) {
+                    // 点击到点，准备拖动
+                    isDragging = true;
+                    const index = entities.indexOf(pickedObject.id);
+                    draggedIndex = index;
+                    draggedPoint = pickedObject.id;
+                    viewer.scene.screenSpaceCameraController.enableRotate = false;
+                    log('选中点，准备拖动');
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+            // 左键释放 - 添加点或结束拖动
+            handler.setInputAction((click) => {
+                if (isDragging) {
+                    // 结束拖动
+                    isDragging = false;
+                    draggedPoint = null;
+                    draggedIndex = -1;
+                    viewer.scene.screenSpaceCameraController.enableRotate = true;
+                    log('拖动结束');
+                } else {
+                    // 添加新点
+                    log('左键点击');
+                    
+                    // 使用更准确的坐标获取方法
+                    let cartesian = viewer.scene.pickPosition(click.position);
+                    if (!cartesian) {
+                        const ray = viewer.camera.getPickRay(click.position);
+                        cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+                    }
+                    
+                    if (cartesian) {
+                        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                        const lon = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6);
+                        const lat = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
+                        log(`获取坐标: ${lon}°, ${lat}°`);
+                        addPoint(cartesian);
+                    } else {
+                        log('无法获取坐标');
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_UP);
+
+            // 鼠标移动 - 拖动点或显示预览
+            handler.setInputAction((movement) => {
+                if (isDragging && draggedPoint && draggedIndex >= 0) {
+                    // 拖动点
+                    let cartesian = viewer.scene.pickPosition(movement.endPosition);
+                    if (!cartesian) {
+                        const ray = viewer.camera.getPickRay(movement.endPosition);
+                        cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+                    }
+                    if (cartesian) {
+                        points[draggedIndex] = cartesian;
+                        draggedPoint.position = cartesian;
+                        redrawLines();
+                    }
+                } else if (points.length > 0) {
+                    // 显示预览虚线
+                    let cartesian = viewer.scene.pickPosition(movement.endPosition);
+                    if (!cartesian) {
+                        const ray = viewer.camera.getPickRay(movement.endPosition);
+                        cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+                    }
+                    if (cartesian) {
+                        updatePreview(cartesian);
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+            // 双击完成
+            handler.setInputAction(() => {
+                log('双击完成');
+                finishDraw();
+            }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+            // 右键删除点
+            handler.setInputAction((click) => {
+                const pickedObject = viewer.scene.pick(click.position);
+                
+                if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.isPoint) {
+                    const index = entities.indexOf(pickedObject.id);
+                    if (index >= 0) {
+                        viewer.entities.remove(pickedObject.id);
+                        entities.splice(index, 1);
+                        points.splice(index, 1);
+                        redrawLines();
+                        log(`删除点，剩余${points.length}个点`);
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+            log('事件处理器已设置');
+        }
+
+        function addPoint(cartesian) {
+            points.push(cartesian);
+            log(`添加点 ${points.length}`);
+
+            // 添加点实体 - 红色点标记
+            const point = viewer.entities.add({
+                position: cartesian,
+                point: {
+                    pixelSize: 14,
+                    color: Cesium.Color.RED,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                isPoint: true
+            });
+            entities.push(point);
+
+            // 如果有前一个点，绘制绿色线段
+            if (points.length > 1) {
+                const line = viewer.entities.add({
+                    polyline: {
+                        positions: [points[points.length - 2], cartesian],
+                        width: 3,
+                        material: Cesium.Color.GREEN
+                    }
+                });
+                lines.push(line);
+                log('绘制绿色线段');
+            }
+        }
+
+        function updatePreview(cartesian) {
+            if (previewLine) {
+                viewer.entities.remove(previewLine);
+            }
+            
+            if (points.length > 0) {
+                previewLine = viewer.entities.add({
+                    polyline: {
+                        positions: [points[points.length - 1], cartesian],
+                        width: 2,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.GREEN
+                        })
+                    }
+                });
+            }
+        }
+
+        function redrawLines() {
+            // 删除所有线段
+            lines.forEach(l => viewer.entities.remove(l));
+            lines = [];
+            
+            // 重新绘制所有线段
+            for (let i = 0; i < points.length - 1; i++) {
+                const line = viewer.entities.add({
+                    polyline: {
+                        positions: [points[i], points[i + 1]],
+                        width: 3,
+                        material: Cesium.Color.GREEN
+                    }
+                });
+                lines.push(line);
+            }
+            log('重绘线段');
+        }
+
+        function finishDraw() {
+            if (points.length < 3) {
+                log('至少需要3个点');
+                return;
+            }
+
+            if (previewLine) {
+                viewer.entities.remove(previewLine);
+                previewLine = null;
+            }
+
+            viewer.entities.add({
+                polygon: {
+                    hierarchy: points,
+                    material: Cesium.Color.YELLOW.withAlpha(0.4)
+                }
+            });
+
+            log('完成多边形');
+            isDrawing = false;
+            if (handler) {
+                handler.destroy();
+                handler = null;
+            }
+        }
+
+        function clearDraw() {
+            entities.forEach(e => viewer.entities.remove(e));
+            lines.forEach(l => viewer.entities.remove(l));
+            if (previewLine) viewer.entities.remove(previewLine);
+            points = [];
+            entities = [];
+            lines = [];
+            previewLine = null;
+            log('已清除');
+        }
+
+        log('页面加载完成');
+    </script>
+</body>
+</html>

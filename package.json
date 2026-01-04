@@ -1,0 +1,30 @@
+{
+  "name": "pingtan-3d-viewer",
+  "version": "1.0.0",
+  "description": "基于Cesium的平潭三维场景管理系统",
+  "main": "src/js/main.js",
+  "scripts": {
+    "start": "http-server src -p 8080 -c-1",
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development"
+  },
+  "dependencies": {
+    "cesium": "^1.131.0",
+    "delaunator": "^5.0.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0",
+    "webpack-dev-server": "^4.15.0"
+  },
+  "keywords": [
+    "cesium",
+    "3d",
+    "gis",
+    "pingtan"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

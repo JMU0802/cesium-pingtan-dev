@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>平潭3D场景管理系统</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: 'Microsoft YaHei', 'Arial', sans-serif;
+        }
+        
+        .control-panel {
+            position: absolute; top: 10px; left: 10px;
+            background: linear-gradient(135deg, rgba(30, 30, 50, 0.95), rgba(50, 50, 70, 0.95));
+            padding: 0; border-radius: 12px; color: white; width: 380px;
+            max-height: 90vh; overflow-y: auto; z-index: 1000;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .control-panel::-webkit-scrollbar { width: 8px; }
+        .control-panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .control-panel::-webkit-scrollbar-thumb { background: rgba(76, 175, 80, 0.6); border-radius: 4px; }
+        
+        .panel-header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            padding: 18px 20px; border-radius: 12px 12px 0 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .panel-header h2 {
+            font-size: 20px; font-weight: bold;
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        .panel-section {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .panel-section:last-child { border-bottom: none; }
+
+        .section-title {
+            margin: 0 0 12px 0; color: #4CAF50; font-size: 16px; font-weight: bold;
+            display: flex; align-items: center; gap: 8px; padding-bottom: 8px;
+            border-bottom: 2px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-group {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 8px; margin-top: 10px;
+        }
+
+        .btn-group-single { display: flex; flex-direction: column; gap: 8px; }
+        
+        .btn {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white; border: none; padding: 10px 15px; border-radius: 6px;
+            cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #45a049, #3d8b40);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.5);
+        }
+
+        .btn:active:not(:disabled) { transform: translateY(0); }
+        
+        .btn:disabled {
+            background: linear-gradient(135deg, #666, #555);
+            cursor: not-allowed; transform: none; box-shadow: none; opacity: 0.6;
+        }
+
+        .btn.btn-danger { background: linear-gradient(135deg, #f44336, #d32f2f); }
+        .btn.btn-danger:hover:not(:disabled) { background: linear-gradient(135deg, #d32f2f, #c62828); }
+        .btn.btn-warning { background: linear-gradient(135deg, #FF9800, #F57C00); }
+        .btn.btn-info { background: linear-gradient(135deg, #2196F3, #1976D2); }
+        .btn.btn-purple { background: linear-gradient(135deg, #9C27B0, #7B1FA2); }
+        .btn-full { grid-column: span 2; }
+
+        .file-input-wrapper {
+            margin-top: 10px; padding: 12px; background: rgba(0,0,0,0.3);
+            border-radius: 6px; border: 2px dashed rgba(76, 175, 80, 0.5);
+        }
+
+        .file-input-wrapper input[type="file"] { display: none; }
+
+        .file-input-label {
+            display: block; padding: 10px; background: rgba(76, 175, 80, 0.2);
+            border-radius: 4px; cursor: pointer; text-align: center; transition: all 0.3s;
+        }
+
+        .file-input-label:hover { background: rgba(76, 175, 80, 0.4); }
+
+        .input-group {
+            margin: 10px 0; display: flex; flex-direction: column; gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 12px; color: #aaa; font-weight: 500;
+        }
+
+        .input-group input, .input-group select {
+            padding: 8px 12px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.3); color: white; font-size: 13px;
+        }
+
+        .input-group input[type="color"] {
+            height: 40px; cursor: pointer;
+        }
+
+        .coordinate-display {
+            position: absolute; bottom: 10px; left: 10px;
+            background: linear-gradient(135deg, rgba(30, 30, 50, 0.95), rgba(50, 50, 70, 0.95));
+            padding: 12px 20px; border-radius: 8px; color: white;
+            font-family: 'Consolas', monospace; font-size: 13px; z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); min-width: 450px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .coordinate-display .coord-label {
+            color: #4CAF50; font-weight: bold; margin-right: 8px;
+        }
+
+        .coordinate-display .coord-value { color: #FFF; }
+        
+        .log {
+            margin-top: 12px; padding: 12px; background: rgba(0,0,0,0.5);
+            border-radius: 6px; font-size: 11px; max-height: 180px; overflow-y: auto;
+            font-family: 'Consolas', monospace; border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .log::-webkit-scrollbar { width: 6px; }
+        .log::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .log::-webkit-scrollbar-thumb { background: rgba(76, 175, 80, 0.6); border-radius: 3px; }
+        
+        .log-success { color: #4CAF50; }
+        .log-error { color: #f44336; }
+        .log-info { color: #2196F3; }
+        .log-warning { color: #FF9800; }
+        
+        .info-box {
+            margin-top: 10px; padding: 12px; background: rgba(33, 150, 243, 0.15);
+            border-left: 4px solid #2196F3; border-radius: 4px; font-size: 12px; line-height: 1.6;
+        }
+
+        .polygon-info {
+            margin-top: 10px; padding: 12px; background: rgba(255, 152, 0, 0.15);
+            border-left: 4px solid #FF9800; border-radius: 4px; font-size: 12px; display: none;
+        }
+
+        .polygon-info strong { color: #FF9800; }
+        .polygon-info div { margin: 6px 0; }
+
+        .toggle-panel {
+            position: absolute; top: 10px; left: 400px; z-index: 1001;
+        }
+
+        .toggle-btn {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white; border: none; padding: 10px 20px; border-radius: 8px;
+            cursor: pointer; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        .toggle-btn:hover {
+            background: linear-gradient(135deg, #45a049, #3d8b40);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
+        }
+
+        .collapsed { display: none; }
+
+        .style-controls {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;
+        }
+
+        .modal {
+            display: none; position: fixed; z-index: 2000;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.6);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, rgba(40, 40, 60, 0.98), rgba(60, 60, 80, 0.98));
+            margin: 5% auto; padding: 0; border-radius: 12px;
+            width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.2); color: white;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            padding: 20px; border-radius: 12px 12px 0 0;
+            font-size: 18px; font-weight: bold;
+        }
+
+        .modal-body { padding: 20px; }
+
+        .modal-footer {
+            padding: 15px 20px; border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: flex-end; gap: 10px;
+        }
+
+        .close {
+            color: white; float: right; font-size: 28px;
+            font-weight: bold; cursor: pointer; line-height: 20px;
+        }
+
+        .close:hover { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    
+    <div class="toggle-panel">
+        <button class="toggle-btn" onclick="togglePanel()">📋 面板</button>
+    </div>
+
+    <div class="control-panel" id="controlPanel">
+        <div class="panel-header">
+            <h2>🗺️ 平潭3D场景管理系统</h2>
+        </div>
+        
+        <div class="panel-section">
+            <h3 class="section-title">📦 数据加载</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="folderInput" webkitdirectory directory multiple>
+                <label for="folderInput" class="file-input-label">📁 选择数据文件夹</label>
+                <div id="folderPath" style="margin-top: 8px; font-size: 11px; color: #aaa;"></div>
+            </div>
+            <div class="btn-group">
+                <button onclick="loadMainTileset()" class="btn">📦 主模型</button>
+                <button onclick="loadBlockAB()" class="btn">🧱 BlockAB</button>
+                <button onclick="loadBlockXX()" class="btn">🧱 BlockXX</button>
+                <button onclick="loadBlockXA()" class="btn">🧱 BlockXA</button>
+                <button onclick="loadBlockAY()" class="btn">🧱 BlockAY</button>
+                <button onclick="clearAll()" class="btn btn-danger btn-full">🗑️ 清除模型</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3 class="section-title">✏️ 多边形绘制工具</h3>
+            <div class="btn-group-single">
+                <button onclick="startDrawPolygon()" class="btn" id="drawBtn">🎨 开始绘制</button>
+                <button onclick="finishDrawing()" class="btn btn-info" id="finishBtn" disabled>✅ 完成绘制</button>
+                <button onclick="deleteLastPoint()" class="btn btn-warning" id="deletePointBtn" disabled>⬅️ 删除上一点</button>
+                <button onclick="cancelPolygon()" class="btn btn-warning" id="cancelBtn" disabled>❌ 取消</button>
+            </div>
+
+            <div class="style-controls">
+                <div class="input-group">
+                    <label>填充颜色</label>
+                    <input type="color" id="fillColor" value="#ffff00">
+                </div>
+                <div class="input-group">
+                    <label>透明度</label>
+                    <input type="range" id="fillOpacity" min="0" max="100" value="40">
+                </div>
+                <div class="input-group">
+                    <label>线条颜色</label>
+                    <input type="color" id="lineColor" value="#ffff00">
+                </div>
+                <div class="input-group">
+                    <label>线宽</label>
+                    <input type="range" id="lineWidth" min="2" max="10" value="4">
+                </div>
+            </div>
+
+            <div class="btn-group" style="margin-top: 10px;">
+                <button onclick="savePolygon()" class="btn btn-purple">💾 保存</button>
+                <button onclick="showLoadModal()" class="btn btn-info">📂 加载</button>
+                <button onclick="deleteSelectedPolygon()" class="btn btn-danger" id="deletePolyBtn" disabled>🗑️ 删除选中</button>
+                <button onclick="clearPolygons()" class="btn btn-danger btn-full">🗑️ 清除所有</button>
+            </div>
+
+            <div class="info-box">
+                <strong>💡 操作说明:</strong><br>
+                • <strong>添加点</strong>: 左键单击地面（红色圆点）<br>
+                • <strong>预览</strong>: 鼠标移动显示绿色虚线<br>
+                • <strong>拖动点</strong>: 左键按住红点拖动<br>
+                • <strong>删除点</strong>: 右键点击红点删除<br>
+                • <strong>插入点</strong>: Ctrl+左键点击绿色线段<br>
+                • <strong>完成</strong>: 左键双击或点击按钮
+            </div>
+
+            <div class="polygon-info" id="polygonInfo">
+                <div><strong>🔢 顶点:</strong> <span id="polygonPoints">0</span></div>
+                <div><strong>📏 周长:</strong> <span id="polygonPerimeter">0 m</span></div>
+                <div><strong>📐 面积:</strong> <span id="polygonArea">0 m²</span></div>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3 class="section-title">📊 日志信息</h3>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <div class="coordinate-display">
+        <span class="coord-label">经度:</span><span class="coord-value" id="longitude">--</span>
+        <span class="coord-label" style="margin-left: 20px;">纬度:</span><span class="coord-value" id="latitude">--</span>
+        <span class="coord-label" style="margin-left: 20px;">高度:</span><span class="coord-value" id="height">--</span>
+    </div>
+
+    <!-- 加载多边形模态框 -->
+    <div id="loadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close" onclick="closeLoadModal()">&times;</span>
+                📂 加载多边形
+            </div>
+            <div class="modal-body">
+                <div class="file-input-wrapper">
+                    <input type="file" id="loadFileInput" accept=".json">
+                    <label for="loadFileInput" class="file-input-label">选择JSON文件</label>
+                </div>
+                
+                <div class="style-controls" style="margin-top: 20px;">
+                    <div class="input-group">
+                        <label>填充颜色</label>
+                        <input type="color" id="loadFillColor" value="#00ff00">
+                    </div>
+                    <div class="input-group">
+                        <label>透明度</label>
+                        <input type="range" id="loadFillOpacity" min="0" max="100" value="40">
+                    </div>
+                    <div class="input-group">
+                        <label>线条颜色</label>
+                        <input type="color" id="loadLineColor" value="#ffffff">
+                    </div>
+                    <div class="input-group">
+                        <label>线宽</label>
+                        <input type="range" id="loadLineWidth" min="2" max="10" value="3">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeLoadModal()" class="btn btn-warning">取消</button>
+                <button onclick="loadPolygonFile()" class="btn btn-info">加载</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/pingtan-complete.js"></script>
+</body>
+</html>
