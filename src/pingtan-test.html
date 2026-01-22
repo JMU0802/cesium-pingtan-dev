@@ -1,8 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
-    <title>骞虫江3D鍦烘櫙绠＄悊绯荤粺</title>
+    <title>平潭3D场景管理系统</title>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
@@ -272,139 +272,148 @@
     <div id="cesiumContainer"></div>
     
     <div class="toggle-panel">
-        <button class="toggle-btn" onclick="togglePanel()">馃搵 闈㈡澘</button>
+        <button class="toggle-btn" onclick="togglePanel()">📋 面板</button>
     </div>
 
     <div class="control-panel" id="controlPanel">
         <div class="panel-header">
-            <h2>馃椇锔?骞虫江3D鍦烘櫙绠＄悊绯荤粺</h2>
+            <h2>🗺️ 平潭3D场景管理系统</h2>
         </div>
         
-        <div class="panel-section">
-            <h3 class="section-title">馃摝 鏁版嵁鍔犺浇</h3>
+        <div class="panel-section">            <h3 class="section-title">🌍 影像图层</h3>
+            <div class="btn-group">
+                <button onclick="switchImagery('osm')" class="btn" id="osmBtn">🗺️ 街道图</button>
+                <button onclick="switchImagery('satellite')" class="btn" id="satelliteBtn">🛰️ 卫星图</button>
+            </div>
+        </div>
+
+        <div class="panel-section">            <h3 class="section-title">📦 数据加载</h3>
             <div class="file-input-wrapper">
                 <input type="file" id="folderInput" webkitdirectory directory multiple>
-                <label for="folderInput" class="file-input-label">馃搧 閫夋嫨鏁版嵁鏂囦欢澶?/label>
+                <label for="folderInput" class="file-input-label">📁 选择数据文件夹</label>
                 <div id="folderPath" style="margin-top: 8px; font-size: 11px; color: #aaa;"></div>
             </div>
             <div class="btn-group">
-                <button onclick="loadMainTileset()" class="btn">馃摝 涓绘ā鍨?/button>
-                <button onclick="loadBlockAB()" class="btn">馃П BlockAB</button>
-                <button onclick="loadBlockXX()" class="btn">馃П BlockXX</button>
-                <button onclick="loadBlockXA()" class="btn">馃П BlockXA</button>
-                <button onclick="loadBlockAY()" class="btn">馃П BlockAY</button>
-                <button onclick="clearAll()" class="btn btn-danger btn-full">馃棏锔?娓呴櫎妯″瀷</button>
+                <button onclick="loadMainTileset()" class="btn">📦 主模型</button>
+                <button onclick="loadBlockAB()" class="btn">🧱 BlockAB</button>
+                <button onclick="loadBlockXX()" class="btn">🧱 BlockXX</button>
+                <button onclick="loadBlockXA()" class="btn">🧱 BlockXA</button>
+                <button onclick="loadBlockAY()" class="btn">🧱 BlockAY</button>
+                <button onclick="clearAll()" class="btn btn-danger btn-full">🗑️ 清除模型</button>
             </div>
         </div>
 
         <div class="panel-section">
-            <h3 class="section-title">鉁忥笍 澶氳竟褰㈢粯鍒跺伐鍏?/h3>
+            <h3 class="section-title">✏️ 多边形绘制工具</h3>
             <div class="btn-group-single">
-                <button onclick="startDrawPolygon()" class="btn" id="drawBtn">馃帹 寮€濮嬬粯鍒?/button>
-                <button onclick="finishDrawing()" class="btn btn-info" id="finishBtn" disabled>鉁?瀹屾垚缁樺埗</button>
-                <button onclick="deleteLastPoint()" class="btn btn-warning" id="deletePointBtn" disabled>猬咃笍 鍒犻櫎涓婁竴鐐?/button>
-                <button onclick="cancelPolygon()" class="btn btn-warning" id="cancelBtn" disabled>鉂?鍙栨秷</button>
+                <button onclick="startDrawPolygon()" class="btn" id="drawBtn">🎨 开始绘制</button>
+                <button onclick="finishDrawing()" class="btn btn-info" id="finishBtn" disabled>✅ 完成绘制</button>
+                <button onclick="deleteLastPoint()" class="btn btn-warning" id="deletePointBtn" disabled>⬅️ 删除上一点</button>
+                <button onclick="cancelPolygon()" class="btn btn-warning" id="cancelBtn" disabled>❌ 取消</button>
             </div>
 
             <div class="style-controls">
                 <div class="input-group">
-                    <label>濉厖棰滆壊</label>
+                    <label>填充颜色</label>
                     <input type="color" id="fillColor" value="#ffff00">
                 </div>
                 <div class="input-group">
-                    <label>閫忔槑搴?/label>
+                    <label>透明度</label>
                     <input type="range" id="fillOpacity" min="0" max="100" value="40">
                 </div>
                 <div class="input-group">
-                    <label>绾挎潯棰滆壊</label>
+                    <label>线条颜色</label>
                     <input type="color" id="lineColor" value="#ffff00">
                 </div>
                 <div class="input-group">
-                    <label>绾垮</label>
+                    <label>线宽</label>
                     <input type="range" id="lineWidth" min="2" max="10" value="4">
                 </div>
             </div>
 
             <div class="btn-group" style="margin-top: 10px;">
-                <button onclick="savePolygon()" class="btn btn-purple">馃捑 淇濆瓨</button>
-                <button onclick="showLoadModal()" class="btn btn-info">馃搨 鍔犺浇</button>
-                <button onclick="deleteSelectedPolygon()" class="btn btn-danger" id="deletePolyBtn" disabled>馃棏锔?鍒犻櫎閫変腑</button>
-                <button onclick="clearPolygons()" class="btn btn-danger btn-full">馃棏锔?娓呴櫎鎵€鏈?/button>
+                <button onclick="savePolygon()" class="btn btn-purple">💾 保存</button>
+                <button onclick="showLoadModal()" class="btn btn-info">📂 加载</button>
+                <button onclick="deleteSelectedPolygon()" class="btn btn-danger" id="deletePolyBtn" disabled>🗑️ 删除选中</button>
+                <button onclick="clearPolygons()" class="btn btn-danger btn-full">🗑️ 清除所有</button>
             </div>
 
             <div class="info-box">
-                <strong>馃挕 鎿嶄綔璇存槑:</strong><br>
-                鈥?<strong>娣诲姞鐐?/strong>: 宸﹂敭鍗曞嚮鍦伴潰锛堢孩鑹插渾鐐癸級<br>
-                鈥?<strong>棰勮</strong>: 榧犳爣绉诲姩鏄剧ず缁胯壊铏氱嚎<br>
-                鈥?<strong>鎷栧姩鐐?/strong>: 宸﹂敭鎸変綇绾㈢偣鎷栧姩<br>
-                鈥?<strong>鍒犻櫎鐐?/strong>: 鍙抽敭鐐瑰嚮绾㈢偣鍒犻櫎<br>
-                鈥?<strong>鎻掑叆鐐?/strong>: Ctrl+宸﹂敭鐐瑰嚮缁胯壊绾挎<br>
-                鈥?<strong>瀹屾垚</strong>: 宸﹂敭鍙屽嚮鎴栫偣鍑绘寜閽?            </div>
+                <strong>💡 操作说明:</strong><br>
+                • <strong>添加点</strong>: 左键单击地面（红色圆点）<br>
+                • <strong>预览</strong>: 鼠标移动显示绿色虚线<br>
+                • <strong>拖动点</strong>: 左键按住红点拖动<br>
+                • <strong>删除点</strong>: 右键点击红点删除<br>
+                • <strong>插入点</strong>: Ctrl+左键点击绿色线段<br>
+                • <strong>完成</strong>: 左键双击或点击按钮
+            </div>
 
             <div class="polygon-info" id="polygonInfo">
-                <div><strong>馃敘 椤剁偣:</strong> <span id="polygonPoints">0</span></div>
-                <div><strong>馃搹 鍛ㄩ暱:</strong> <span id="polygonPerimeter">0 m</span></div>
-                <div><strong>馃搻 闈㈢Н:</strong> <span id="polygonArea">0 m虏</span></div>
+                <div><strong>🔢 顶点:</strong> <span id="polygonPoints">0</span></div>
+                <div><strong>📏 周长:</strong> <span id="polygonPerimeter">0 m</span></div>
+                <div><strong>📐 面积:</strong> <span id="polygonArea">0 m²</span></div>
             </div>
         </div>
 
         <div class="panel-section">
-            <h3 class="section-title">馃搵 澶氳竟褰㈠垪琛?/h3>
+            <h3 class="section-title">📋 多边形列表</h3>
             <div class="polygon-list" id="polygonList">
                 <div style="padding: 20px; text-align: center; color: #aaa; font-size: 12px;">
-                    鏆傛棤澶氳竟褰?                </div>
+                    暂无多边形
+                </div>
             </div>
             <div class="total-area" id="totalArea">
-                鎬婚潰绉? 0 m虏
+                总面积: 0 m²
             </div>
         </div>
 
         <div class="panel-section">
-            <h3 class="section-title">馃搳 鏃ュ織淇℃伅</h3>
+            <h3 class="section-title">📊 日志信息</h3>
             <div class="log" id="log"></div>
         </div>
     </div>
 
     <div class="coordinate-display">
-        <span class="coord-label">缁忓害:</span><span class="coord-value" id="longitude">--</span>
-        <span class="coord-label" style="margin-left: 20px;">绾害:</span><span class="coord-value" id="latitude">--</span>
-        <span class="coord-label" style="margin-left: 20px;">楂樺害:</span><span class="coord-value" id="height">--</span>
+        <span class="coord-label">经度:</span><span class="coord-value" id="longitude">--</span>
+        <span class="coord-label" style="margin-left: 20px;">纬度:</span><span class="coord-value" id="latitude">--</span>
+        <span class="coord-label" style="margin-left: 20px;">高度:</span><span class="coord-value" id="height">--</span>
     </div>
 
-    <!-- 鍔犺浇澶氳竟褰㈡ā鎬佹 -->
+    <!-- 加载多边形模态框 -->
     <div id="loadModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <span class="close" onclick="closeLoadModal()">&times;</span>
-                馃搨 鍔犺浇澶氳竟褰?            </div>
+                📂 加载多边形
+            </div>
             <div class="modal-body">
                 <div class="file-input-wrapper">
                     <input type="file" id="loadFileInput" accept=".json">
-                    <label for="loadFileInput" class="file-input-label">閫夋嫨JSON鏂囦欢</label>
+                    <label for="loadFileInput" class="file-input-label">选择JSON文件</label>
                 </div>
                 
                 <div class="style-controls" style="margin-top: 20px;">
                     <div class="input-group">
-                        <label>濉厖棰滆壊</label>
+                        <label>填充颜色</label>
                         <input type="color" id="loadFillColor" value="#00ff00">
                     </div>
                     <div class="input-group">
-                        <label>閫忔槑搴?/label>
+                        <label>透明度</label>
                         <input type="range" id="loadFillOpacity" min="0" max="100" value="40">
                     </div>
                     <div class="input-group">
-                        <label>绾挎潯棰滆壊</label>
+                        <label>线条颜色</label>
                         <input type="color" id="loadLineColor" value="#ffffff">
                     </div>
                     <div class="input-group">
-                        <label>绾垮</label>
+                        <label>线宽</label>
                         <input type="range" id="loadLineWidth" min="2" max="10" value="3">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button onclick="closeLoadModal()" class="btn btn-warning">鍙栨秷</button>
-                <button onclick="loadPolygonFile()" class="btn btn-info">鍔犺浇</button>
+                <button onclick="closeLoadModal()" class="btn btn-warning">取消</button>
+                <button onclick="loadPolygonFile()" class="btn btn-info">加载</button>
             </div>
         </div>
     </div>

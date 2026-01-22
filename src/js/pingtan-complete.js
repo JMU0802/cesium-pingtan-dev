@@ -1,5 +1,5 @@
-﻿// Cesium Ion 璁块棶浠ょ墝锛堝凡绉婚櫎杩囨湡token锛屼娇鐢ㄥ紑婧愬湴褰級
-// 濡傞渶浣跨敤 Cesium Ion 璧勬簮锛岃璁块棶 https://cesium.com/ion/ 鑾峰彇鏂?token
+// Cesium Ion 访问令牌（已移除过期token，使用开源地形）
+// 如需使用 Cesium Ion 资源，请访问 https://cesium.com/ion/ 获取新 token
 // Cesium.Ion.defaultAccessToken = 'YOUR_ACCESS_TOKEN_HERE';
 
 let viewer;
@@ -12,30 +12,30 @@ let currentPolygon = {
     isDragging: false,
     draggedEntity: null
 };
-let savedPolygons = [];  // 鏀逛负瀛樺偍瀹屾暣鐨勫杈瑰舰瀵硅薄鏁扮粍
-let polygonCounter = 1;  // 澶氳竟褰㈣鏁板櫒
+let savedPolygons = [];  // 改为存储完整的多边形对象数组
+let polygonCounter = 1;  // 多边形计数器
 let selectedPolygon = null;
-let selectedPolygonId = null;  // 褰撳墠閫変腑鐨勫杈瑰舰ID
+let selectedPolygonId = null;  // 当前选中的多边形ID
 let handler;
 let ctrlPressed = false;
 let keyDownHandler = null;
 let keyUpHandler = null;
 let mouseDownPosition = null;
 let isDraggingScene = false;
-let previewLine = null; // 棰勮铏氱嚎
+let previewLine = null; // 预览虚线
 
-// 鍒濆鍖?Cesium Viewer
+// 初始化 Cesium Viewer
 function initCesium() {
     try {
         viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: new Cesium.EllipsoidTerrainProvider(),  // 浣跨敤妞悆浣撳湴褰㈤伩鍏?token 閿欒
+            terrainProvider: new Cesium.EllipsoidTerrainProvider(),  // 使用椭球体地形避免 token 错误
             imageryProvider: new Cesium.OpenStreetMapImageryProvider({
                 url: 'https://a.tile.openstreetmap.org/'
-            }),  // 浣跨敤 OpenStreetMap 鏇夸唬 Cesium Ion 褰卞儚
+            }),  // 使用 OpenStreetMap 替代 Cesium Ion 影像
             animation: false,
             timeline: false,
-            baseLayerPicker: false,  // 绂佺敤浠ラ伩鍏?Cesium Ion 璋冪敤
-            geocoder: false,  // 绂佺敤浠ラ伩鍏?Cesium Ion 璋冪敤
+            baseLayerPicker: false,  // 禁用以避免 Cesium Ion 调用
+            geocoder: false,  // 禁用以避免 Cesium Ion 调用
             homeButton: true,
             navigationHelpButton: true,
             sceneModePicker: true,
@@ -44,7 +44,7 @@ function initCesium() {
 
         viewer.scene.globe.depthTestAgainstTerrain = true;
         
-        // 椋炲悜骞虫江
+        // 飞向平潭
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(119.789, 25.497, 5000),
             orientation: {
@@ -54,17 +54,74 @@ function initCesium() {
             }
         });
 
-        logMessage('Cesium鍒濆鍖栨垚鍔?, 'success');
+        logMessage('Cesium初始化成功', 'success');
         
-        // 璁剧疆榧犳爣绉诲姩浜嬩欢鏄剧ず鍧愭爣
+        // 设置鼠标移动事件显示坐标
         setupMouseMoveHandler();
         
+        // 默认选中OSM按钮
+        updateImageryButtonState('osm');
+        
     } catch (error) {
-        logMessage('Cesium鍒濆鍖栧け璐? ' + error.message, 'error');
+        logMessage('Cesium初始化失败: ' + error.message, 'error');
     }
 }
 
-// 璁剧疆榧犳爣绉诲姩浜嬩欢
+// 切换影像图层
+function switchImagery(type) {
+    try {
+        // 移除所有影像图层
+        viewer.imageryLayers.removeAll();
+        
+        // 根据类型添加新的影像图层
+        if (type === 'osm') {
+            viewer.imageryLayers.addImageryProvider(
+                new Cesium.OpenStreetMapImageryProvider({
+                    url: 'https://a.tile.openstreetmap.org/'
+                })
+            );
+            logMessage('已切换到街道图', 'success');
+        } else if (type === 'satellite') {
+            viewer.imageryLayers.addImageryProvider(
+                new Cesium.ArcGisMapServerImageryProvider({
+                    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+                })
+            );
+            logMessage('已切换到卫星影像', 'success');
+        }
+        
+        // 更新按钮状态
+        updateImageryButtonState(type);
+        
+    } catch (error) {
+        logMessage('切换影像失败: ' + error.message, 'error');
+    }
+}
+
+// 更新影像按钮状态
+function updateImageryButtonState(activeType) {
+    const osmBtn = document.getElementById('osmBtn');
+    const satelliteBtn = document.getElementById('satelliteBtn');
+    
+    if (osmBtn && satelliteBtn) {
+        // 移除所有按钮的active状态
+        osmBtn.style.opacity = '0.6';
+        satelliteBtn.style.opacity = '0.6';
+        
+        // 设置当前选中按钮的状态
+        if (activeType === 'osm') {
+            osmBtn.style.opacity = '1';
+            osmBtn.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.6)';
+            satelliteBtn.style.boxShadow = 'none';
+        } else if (activeType === 'satellite') {
+            satelliteBtn.style.opacity = '1';
+            satelliteBtn.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.6)';
+            osmBtn.style.boxShadow = 'none';
+        }
+    }
+}
+
+// 设置鼠标移动事件
 function setupMouseMoveHandler() {
     const scene = viewer.scene;
     const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
@@ -78,29 +135,30 @@ function setupMouseMoveHandler() {
                 const latitude = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
                 const height = cartographic.height.toFixed(2);
                 
-                document.getElementById('longitude').textContent = longitude + '掳';
-                document.getElementById('latitude').textContent = latitude + '掳';
+                document.getElementById('longitude').textContent = longitude + '°';
+                document.getElementById('latitude').textContent = latitude + '°';
                 document.getElementById('height').textContent = height + ' m';
             }
         }
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 }
 
-// 鏃ュ織娑堟伅
+// 日志消息
 function logMessage(message, type = 'info') {
     const log = document.getElementById('log');
     const timestamp = new Date().toLocaleTimeString();
     const className = 'log-' + type;
     log.innerHTML = `<div class="${className}">[${timestamp}] ${message}</div>` + log.innerHTML;
     
-    // 闄愬埗鏃ュ織鏉＄洰鏁伴噺
+    // 限制日志条目数量
     const entries = log.querySelectorAll('div');
     if (entries.length > 50) {
         entries[entries.length - 1].remove();
     }
 }
 
-// 鍔犺浇涓绘ā鍨?function loadMainTileset() {
+// 加载主模型
+function loadMainTileset() {
     try {
         const tileset = viewer.scene.primitives.add(
             new Cesium.Cesium3DTileset({
@@ -111,36 +169,37 @@ function logMessage(message, type = 'info') {
         tileset.readyPromise.then(function(tileset) {
             viewer.zoomTo(tileset);
             tilesets.push(tileset);
-            logMessage('涓绘ā鍨嬪姞杞芥垚鍔?, 'success');
+            logMessage('主模型加载成功', 'success');
         }).catch(function(error) {
-            logMessage('涓绘ā鍨嬪姞杞藉け璐? ' + error.message, 'error');
+            logMessage('主模型加载失败: ' + error.message, 'error');
         });
     } catch (error) {
-        logMessage('鍔犺浇澶辫触: ' + error.message, 'error');
+        logMessage('加载失败: ' + error.message, 'error');
     }
 }
 
-// 鍔犺浇 BlockAB
+// 加载 BlockAB
 function loadBlockAB() {
     loadBlock('BlockAB', './pingtan/terra_3Dtiles/BlockAB/');
 }
 
-// 鍔犺浇 BlockXX
+// 加载 BlockXX
 function loadBlockXX() {
     loadBlock('BlockXX', './pingtan/terra_3Dtiles/BlockXX/');
 }
 
-// 鍔犺浇 BlockXA
+// 加载 BlockXA
 function loadBlockXA() {
     loadBlock('BlockXA', './pingtan/terra_3Dtiles/BlockXA/');
 }
 
-// 鍔犺浇 BlockAY
+// 加载 BlockAY
 function loadBlockAY() {
     loadBlock('BlockAY', './pingtan/terra_3Dtiles/BlockAY/');
 }
 
-// 閫氱敤鍔犺浇鍧楀嚱鏁?function loadBlock(blockName, path) {
+// 通用加载块函数
+function loadBlock(blockName, path) {
     try {
         const tileset = viewer.scene.primitives.add(
             new Cesium.Cesium3DTileset({
@@ -150,38 +209,39 @@ function loadBlockAY() {
         
         tileset.readyPromise.then(function(tileset) {
             tilesets.push(tileset);
-            logMessage(blockName + ' 鍔犺浇鎴愬姛', 'success');
+            logMessage(blockName + ' 加载成功', 'success');
         }).catch(function(error) {
-            logMessage(blockName + ' 鍔犺浇澶辫触: ' + error.message, 'error');
+            logMessage(blockName + ' 加载失败: ' + error.message, 'error');
         });
     } catch (error) {
-        logMessage(blockName + ' 鍔犺浇澶辫触: ' + error.message, 'error');
+        logMessage(blockName + ' 加载失败: ' + error.message, 'error');
     }
 }
 
-// 娓呴櫎鎵€鏈夋ā鍨?function clearAll() {
+// 清除所有模型
+function clearAll() {
     tilesets.forEach(tileset => {
         viewer.scene.primitives.remove(tileset);
     });
     tilesets = [];
-    logMessage('宸叉竻闄ゆ墍鏈夋ā鍨?, 'info');
+    logMessage('已清除所有模型', 'info');
 }
 
-// 寮€濮嬬粯鍒跺杈瑰舰
+// 开始绘制多边形
 function startDrawPolygon() {
     if (currentPolygon.isDrawing) {
-        logMessage('宸茬粡鍦ㄧ粯鍒舵ā寮忎腑', 'warning');
+        logMessage('已经在绘制模式中', 'warning');
         return;
     }
     
-    logMessage('鈺愨晲鈺愨晲鈺愨晲鈺?寮€濮嬬粯鍒跺杈瑰舰 鈺愨晲鈺愨晲鈺愨晲鈺?, 'success');
+    logMessage('═══════ 开始绘制多边形 ═══════', 'success');
     
     currentPolygon.isDrawing = true;
     currentPolygon.points = [];
     currentPolygon.entities = [];
     currentPolygon.lines = [];
     
-    logMessage('缁樺埗鐘舵€佸凡璁剧疆: isDrawing = ' + currentPolygon.isDrawing, 'info');
+    logMessage('绘制状态已设置: isDrawing = ' + currentPolygon.isDrawing, 'info');
     
     document.getElementById('drawBtn').disabled = true;
     document.getElementById('finishBtn').disabled = false;
@@ -189,18 +249,20 @@ function startDrawPolygon() {
     document.getElementById('cancelBtn').disabled = false;
     document.getElementById('polygonInfo').style.display = 'block';
     
-    logMessage('鎸夐挳鐘舵€佸凡鏇存柊', 'info');
+    logMessage('按钮状态已更新', 'info');
     
     setupDrawHandlers();
-    logMessage('鉁?缁樺埗妯″紡宸插惎鍔?- 璇峰乏閿崟鍑诲湴闈㈡坊鍔犵偣', 'success');
+    logMessage('✓ 绘制模式已启动 - 请左键单击地面添加点', 'success');
 }
 
-// 璁剧疆缁樺埗浜嬩欢澶勭悊鍣?function setupDrawHandlers() {
+// 设置绘制事件处理器
+function setupDrawHandlers() {
     if (handler) {
         handler.destroy();
     }
     
-    // 绉婚櫎鏃х殑閿洏鐩戝惉鍣?    if (keyDownHandler) {
+    // 移除旧的键盘监听器
+    if (keyDownHandler) {
         document.removeEventListener('keydown', keyDownHandler);
     }
     if (keyUpHandler) {
@@ -209,12 +271,14 @@ function startDrawPolygon() {
     
     handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     
-    // 绂佺敤鍙抽敭涓婁笅鏂囪彍鍗?    viewer.scene.canvas.oncontextmenu = function(e) {
+    // 禁用右键上下文菜单
+    viewer.scene.canvas.oncontextmenu = function(e) {
         e.preventDefault();
         return false;
     };
     
-    // 鐩戝惉閿洏Ctrl閿?    keyDownHandler = function(e) {
+    // 监听键盘Ctrl键
+    keyDownHandler = function(e) {
         if (e.key === 'Control') {
             ctrlPressed = true;
         }
@@ -229,9 +293,9 @@ function startDrawPolygon() {
     document.addEventListener('keydown', keyDownHandler);
     document.addEventListener('keyup', keyUpHandler);
     
-    logMessage('浜嬩欢澶勭悊鍣ㄥ凡璁剧疆', 'success');
+    logMessage('事件处理器已设置', 'success');
     
-    // 宸﹂敭鎸変笅 - 璁板綍浣嶇疆
+    // 左键按下 - 记录位置
     handler.setInputAction(function(click) {
         if (!currentPolygon.isDrawing) return;
         
@@ -240,23 +304,24 @@ function startDrawPolygon() {
         
         const pickedObject = viewer.scene.pick(click.position);
         
-        // 濡傛灉鐐瑰嚮鐨勬槸宸叉湁鐐癸紝鍑嗗鎷栧姩鐐?        if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.isPoint) {
+        // 如果点击的是已有点，准备拖动点
+        if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.isPoint) {
             currentPolygon.isDragging = true;
             currentPolygon.draggedEntity = pickedObject.id;
             viewer.scene.screenSpaceCameraController.enableRotate = false;
-            logMessage('閫変腑鐐癸紝鍑嗗鎷栧姩', 'success');
+            logMessage('选中点，准备拖动', 'success');
         }
     }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
     
-    // 榧犳爣绉诲姩 - 鎷栧姩鐐规垨鏄剧ず棰勮铏氱嚎
+    // 鼠标移动 - 拖动点或显示预览虚线
     handler.setInputAction(function(movement) {
         if (!currentPolygon.isDrawing) return;
         
         if (currentPolygon.isDragging && currentPolygon.draggedEntity) {
-            // 鎷栧姩鐐?- 浣跨敤scene.pickPosition鑾峰彇鏇村噯纭殑鍧愭爣
+            // 拖动点 - 使用scene.pickPosition获取更准确的坐标
             const cartesian = viewer.scene.pickPosition(movement.endPosition);
             if (!cartesian) {
-                // 濡傛灉pickPosition澶辫触锛屼娇鐢╣lobe.pick
+                // 如果pickPosition失败，使用globe.pick
                 const ray = viewer.camera.getPickRay(movement.endPosition);
                 cartesian = viewer.scene.globe.pick(ray, viewer.scene);
             }
@@ -270,13 +335,13 @@ function startDrawPolygon() {
                 }
             }
         } else if (mouseDownPosition) {
-            // 妫€娴嬫槸鍚﹀湪鎷栧姩鍦烘櫙
+            // 检测是否在拖动场景
             const distance = Cesium.Cartesian2.distance(mouseDownPosition, movement.endPosition);
             if (distance > 5) {
                 isDraggingScene = true;
             }
         } else if (currentPolygon.points.length > 0) {
-            // 鏄剧ず棰勮铏氱嚎 - 浣跨敤scene.pickPosition鑾峰彇鏇村噯纭殑鍧愭爣
+            // 显示预览虚线 - 使用scene.pickPosition获取更准确的坐标
             let cartesian = viewer.scene.pickPosition(movement.endPosition);
             if (!cartesian) {
                 const ray = viewer.camera.getPickRay(movement.endPosition);
@@ -288,17 +353,19 @@ function startDrawPolygon() {
         }
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     
-    // 宸﹂敭閲婃斁 - 娣诲姞鐐规垨缁撴潫鎷栧姩鎴栨彃鍏ョ偣
+    // 左键释放 - 添加点或结束拖动或插入点
     handler.setInputAction(function(click) {
         if (currentPolygon.isDragging) {
-            // 缁撴潫鎷栧姩鐐?            currentPolygon.isDragging = false;
+            // 结束拖动点
+            currentPolygon.isDragging = false;
             currentPolygon.draggedEntity = null;
             viewer.scene.screenSpaceCameraController.enableRotate = true;
-            logMessage('鐐瑰凡绉诲姩', 'success');
+            logMessage('点已移动', 'success');
         } else if (mouseDownPosition && !isDraggingScene) {
-            // 娌℃湁鎷栧姩鍦烘櫙锛屾槸鍗曞嚮琛屼负
+            // 没有拖动场景，是单击行为
             if (ctrlPressed && currentPolygon.points.length >= 2) {
-                // Ctrl + 鐐瑰嚮鍦ㄧ嚎娈典笂鎻掑叆鐐?                let cartesian = viewer.scene.pickPosition(click.position);
+                // Ctrl + 点击在线段上插入点
+                let cartesian = viewer.scene.pickPosition(click.position);
                 if (!cartesian) {
                     const ray = viewer.camera.getPickRay(click.position);
                     cartesian = viewer.scene.globe.pick(ray, viewer.scene);
@@ -307,18 +374,18 @@ function startDrawPolygon() {
                     insertPointOnLine(cartesian);
                 }
             } else if (!ctrlPressed) {
-                // 宸﹂敭鍗曞嚮娣诲姞鐐?- 浣跨敤scene.pickPosition鑾峰彇鏇村噯纭殑鍧愭爣
+                // 左键单击添加点 - 使用scene.pickPosition获取更准确的坐标
                 let cartesian = viewer.scene.pickPosition(click.position);
                 if (!cartesian) {
-                    // 濡傛灉pickPosition澶辫触锛屼娇鐢╣lobe.pick
+                    // 如果pickPosition失败，使用globe.pick
                     const ray = viewer.camera.getPickRay(click.position);
                     cartesian = viewer.scene.globe.pick(ray, viewer.scene);
                 }
                 if (cartesian) {
-                    logMessage('鑾峰彇鍧愭爣鎴愬姛', 'success');
+                    logMessage('获取坐标成功', 'success');
                     addPolygonPoint(cartesian);
                 } else {
-                    logMessage('鏃犳硶鑾峰彇鍧愭爣鐐?, 'error');
+                    logMessage('无法获取坐标点', 'error');
                 }
             }
         }
@@ -327,17 +394,18 @@ function startDrawPolygon() {
         isDraggingScene = false;
     }, Cesium.ScreenSpaceEventType.LEFT_UP);
     
-    // 鍙抽敭鐐瑰嚮鍒犻櫎鐐?    handler.setInputAction(function(click) {
+    // 右键点击删除点
+    handler.setInputAction(function(click) {
         if (!currentPolygon.isDrawing) return;
         
         const pickedObject = viewer.scene.pick(click.position);
         if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.isPoint) {
             deletePolygonPoint(pickedObject.id);
-            logMessage('鍙抽敭鍒犻櫎鐐?, 'info');
+            logMessage('右键删除点', 'info');
         }
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     
-    // 鍙屽嚮瀹屾垚缁樺埗
+    // 双击完成绘制
     handler.setInputAction(function() {
         if (currentPolygon.isDrawing && currentPolygon.points.length >= 3) {
             finishDrawing();
@@ -345,14 +413,15 @@ function startDrawPolygon() {
     }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 }
 
-// 鏇存柊棰勮铏氱嚎
+// 更新预览虚线
 function updatePreviewLine(cartesian) {
-    // 绉婚櫎鏃х殑棰勮绾?    if (previewLine) {
+    // 移除旧的预览线
+    if (previewLine) {
         viewer.entities.remove(previewLine);
         previewLine = null;
     }
     
-    // 濡傛灉鏈夎嚦灏戜竴涓偣锛屽垱寤洪瑙堢嚎 - 缁胯壊铏氱嚎
+    // 如果有至少一个点，创建预览线 - 绿色虚线
     if (currentPolygon.points.length > 0) {
         const lastPoint = currentPolygon.points[currentPolygon.points.length - 1];
         
@@ -370,7 +439,7 @@ function updatePreviewLine(cartesian) {
     }
 }
 
-// 娓呴櫎棰勮铏氱嚎
+// 清除预览虚线
 function clearPreviewLine() {
     if (previewLine) {
         viewer.entities.remove(previewLine);
@@ -378,20 +447,22 @@ function clearPreviewLine() {
     }
 }
 
-// 娣诲姞澶氳竟褰㈢偣
+// 添加多边形点
 function addPolygonPoint(cartesian) {
     currentPolygon.points.push(cartesian);
     
-    // 鏄剧ず鍧愭爣淇℃伅
+    // 显示坐标信息
     const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
     const lon = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6);
     const lat = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
     const height = cartographic.height.toFixed(2);
-    logMessage(`鍧愭爣: 缁忓害${lon}掳, 绾害${lat}掳, 楂樺害${height}m`, 'info');
+    logMessage(`坐标: 经度${lon}°, 纬度${lat}°, 高度${height}m`, 'info');
     
-    // 娓呴櫎棰勮绾?    clearPreviewLine();
+    // 清除预览线
+    clearPreviewLine();
     
-    // 娣诲姞鐐瑰疄浣?- 绾㈣壊鐐规爣璁?    const pointEntity = viewer.entities.add({
+    // 添加点实体 - 红色点标记
+    const pointEntity = viewer.entities.add({
         position: cartesian,
         point: {
             pixelSize: 14,
@@ -405,15 +476,16 @@ function addPolygonPoint(cartesian) {
     
     currentPolygon.entities.push(pointEntity);
     
-    // 濡傛灉鏈夊涓偣锛岀粯鍒跺疄绾跨嚎娈?    if (currentPolygon.points.length > 1) {
+    // 如果有多个点，绘制实线线段
+    if (currentPolygon.points.length > 1) {
         drawLine(currentPolygon.points[currentPolygon.points.length - 2], cartesian);
     }
     
     updatePolygonStats();
-    logMessage(`鉁?娣诲姞鐐?- 鎬荤偣鏁? ${currentPolygon.points.length}`, 'success');
+    logMessage(`✓ 添加点 - 总点数: ${currentPolygon.points.length}`, 'success');
 }
 
-// 鍒犻櫎澶氳竟褰㈢偣
+// 删除多边形点
 function deletePolygonPoint(entity) {
     const index = currentPolygon.entities.indexOf(entity);
     if (index !== -1) {
@@ -422,11 +494,11 @@ function deletePolygonPoint(entity) {
         currentPolygon.points.splice(index, 1);
         redrawPolygon();
         updatePolygonStats();
-        logMessage(`鍒犻櫎鐐?- 鍓╀綑 ${currentPolygon.points.length} 涓偣`, 'info');
+        logMessage(`删除点 - 剩余 ${currentPolygon.points.length} 个点`, 'info');
     }
 }
 
-// 鍒犻櫎涓婁竴涓偣
+// 删除上一个点
 function deleteLastPoint() {
     if (currentPolygon.points.length > 0) {
         const lastEntity = currentPolygon.entities[currentPolygon.entities.length - 1];
@@ -435,15 +507,16 @@ function deleteLastPoint() {
         currentPolygon.points.pop();
         redrawPolygon();
         updatePolygonStats();
-        logMessage(`鍒犻櫎涓婁竴鐐?- 鍓╀綑 ${currentPolygon.points.length} 涓偣`, 'info');
+        logMessage(`删除上一点 - 剩余 ${currentPolygon.points.length} 个点`, 'info');
     }
 }
 
-// 鍦ㄧ嚎娈典笂鎻掑叆鐐?function insertPointOnLine(cartesian) {
+// 在线段上插入点
+function insertPointOnLine(cartesian) {
     let closestIndex = -1;
     let minDistance = Infinity;
     
-    // 鎵惧埌鏈€杩戠殑绾挎
+    // 找到最近的线段
     for (let i = 0; i < currentPolygon.points.length - 1; i++) {
         const distance = distanceToLineSegment(cartesian, currentPolygon.points[i], currentPolygon.points[i + 1]);
         if (distance < minDistance) {
@@ -452,7 +525,8 @@ function deleteLastPoint() {
         }
     }
     
-    // 妫€鏌ラ棴鍚堢嚎娈?    if (currentPolygon.points.length >= 3) {
+    // 检查闭合线段
+    if (currentPolygon.points.length >= 3) {
         const distance = distanceToLineSegment(
             cartesian,
             currentPolygon.points[currentPolygon.points.length - 1],
@@ -465,7 +539,8 @@ function deleteLastPoint() {
     }
     
     if (closestIndex !== -1 && minDistance < 100) {
-        // 鎻掑叆鐐?        currentPolygon.points.splice(closestIndex + 1, 0, cartesian);
+        // 插入点
+        currentPolygon.points.splice(closestIndex + 1, 0, cartesian);
         
         const pointEntity = viewer.entities.add({
             position: cartesian,
@@ -482,11 +557,12 @@ function deleteLastPoint() {
         currentPolygon.entities.splice(closestIndex + 1, 0, pointEntity);
         redrawPolygon();
         updatePolygonStats();
-        logMessage('鎻掑叆鐐规垚鍔?, 'success');
+        logMessage('插入点成功', 'success');
     }
 }
 
-// 璁＄畻鐐瑰埌绾挎鐨勮窛绂?function distanceToLineSegment(point, lineStart, lineEnd) {
+// 计算点到线段的距离
+function distanceToLineSegment(point, lineStart, lineEnd) {
     const cartographic = Cesium.Cartographic.fromCartesian(point);
     const startCarto = Cesium.Cartographic.fromCartesian(lineStart);
     const endCarto = Cesium.Cartographic.fromCartesian(lineEnd);
@@ -521,7 +597,7 @@ function deleteLastPoint() {
     return Math.sqrt(dx * dx + dy * dy) * 111000;
 }
 
-// 缁樺埗绾挎 - 缁胯壊绾挎
+// 绘制线段 - 绿色线段
 function drawLine(start, end) {
     const line = viewer.entities.add({
         polyline: {
@@ -536,30 +612,35 @@ function drawLine(start, end) {
     currentPolygon.lines.push(line);
 }
 
-// 閲嶇粯澶氳竟褰?function redrawPolygon() {
-    // 绉婚櫎鎵€鏈夌嚎娈?    currentPolygon.lines.forEach(line => viewer.entities.remove(line));
+// 重绘多边形
+function redrawPolygon() {
+    // 移除所有线段
+    currentPolygon.lines.forEach(line => viewer.entities.remove(line));
     currentPolygon.lines = [];
     
-    // 閲嶆柊缁樺埗鎵€鏈夌嚎娈?    for (let i = 0; i < currentPolygon.points.length - 1; i++) {
+    // 重新绘制所有线段
+    for (let i = 0; i < currentPolygon.points.length - 1; i++) {
         drawLine(currentPolygon.points[i], currentPolygon.points[i + 1]);
     }
     
-    // 闂悎绾挎
+    // 闭合线段
     if (currentPolygon.points.length >= 3) {
         drawLine(currentPolygon.points[currentPolygon.points.length - 1], currentPolygon.points[0]);
     }
 }
 
-// 瀹屾垚缁樺埗
+// 完成绘制
 function finishDrawing() {
     if (!currentPolygon.isDrawing || currentPolygon.points.length < 3) {
-        logMessage('鑷冲皯闇€瑕?涓偣鎵嶈兘瀹屾垚澶氳竟褰?, 'warning');
+        logMessage('至少需要3个点才能完成多边形', 'warning');
         return;
     }
     
-    // 娓呴櫎棰勮绾?    clearPreviewLine();
+    // 清除预览线
+    clearPreviewLine();
     
-    // 鍒涘缓澶氳竟褰㈠疄浣?    const fillColor = hexToColor(document.getElementById('fillColor').value);
+    // 创建多边形实体
+    const fillColor = hexToColor(document.getElementById('fillColor').value);
     fillColor.alpha = parseFloat(document.getElementById('fillOpacity').value) / 100;
     
     const area = calculateArea(currentPolygon.points);
@@ -575,7 +656,7 @@ function finishDrawing() {
         isPolygon: true,
         polygonData: {
             id: polygonCounter,
-            name: `澶氳竟褰?${polygonCounter}`,
+            name: `多边形 ${polygonCounter}`,
             points: currentPolygon.points.map(p => {
                 const carto = Cesium.Cartographic.fromCartesian(p);
                 return {
@@ -595,7 +676,8 @@ function finishDrawing() {
     savedPolygons.push(polygonEntity);
     polygonCounter++;
     
-    // 鏇存柊澶氳竟褰㈠垪琛?    updatePolygonList();
+    // 更新多边形列表
+    updatePolygonList();
     
     currentPolygon.isDrawing = false;
     currentPolygon.points = [];
@@ -613,7 +695,8 @@ function finishDrawing() {
         handler = null;
     }
     
-    // 绉婚櫎閿洏鐩戝惉鍣?    if (keyDownHandler) {
+    // 移除键盘监听器
+    if (keyDownHandler) {
         document.removeEventListener('keydown', keyDownHandler);
         keyDownHandler = null;
     }
@@ -623,15 +706,16 @@ function finishDrawing() {
     }
     ctrlPressed = false;
     
-    logMessage(`${polygonEntity.polygonData.name} 缁樺埗瀹屾垚 - 闈㈢Н: ${area.toFixed(2)} m虏`, 'success');
+    logMessage(`${polygonEntity.polygonData.name} 绘制完成 - 面积: ${area.toFixed(2)} m²`, 'success');
     
     setupPolygonSelectionHandler();
-    logMessage('澶氳竟褰㈢粯鍒跺畬鎴?- 闈㈢Н: ' + polygonEntity.polygonData.area.toFixed(2) + ' m虏', 'success');
+    logMessage('多边形绘制完成 - 面积: ' + polygonEntity.polygonData.area.toFixed(2) + ' m²', 'success');
 }
 
-// 鍙栨秷缁樺埗
+// 取消绘制
 function cancelPolygon() {
-    // 娓呴櫎棰勮绾?    clearPreviewLine();
+    // 清除预览线
+    clearPreviewLine();
     
     currentPolygon.entities.forEach(entity => viewer.entities.remove(entity));
     currentPolygon.lines.forEach(line => viewer.entities.remove(line));
@@ -652,7 +736,8 @@ function cancelPolygon() {
         handler = null;
     }
     
-    // 绉婚櫎閿洏鐩戝惉鍣?    if (keyDownHandler) {
+    // 移除键盘监听器
+    if (keyDownHandler) {
         document.removeEventListener('keydown', keyDownHandler);
         keyDownHandler = null;
     }
@@ -662,10 +747,11 @@ function cancelPolygon() {
     }
     ctrlPressed = false;
     
-    logMessage('鍙栨秷缁樺埗', 'info');
+    logMessage('取消绘制', 'info');
 }
 
-// 鏇存柊澶氳竟褰㈢粺璁′俊鎭?function updatePolygonStats() {
+// 更新多边形统计信息
+function updatePolygonStats() {
     document.getElementById('polygonPoints').textContent = currentPolygon.points.length;
     
     if (currentPolygon.points.length >= 2) {
@@ -675,11 +761,11 @@ function cancelPolygon() {
     
     if (currentPolygon.points.length >= 3) {
         const area = calculateArea(currentPolygon.points);
-        document.getElementById('polygonArea').textContent = area.toFixed(2) + ' m虏';
+        document.getElementById('polygonArea').textContent = area.toFixed(2) + ' m²';
     }
 }
 
-// 璁＄畻鍛ㄩ暱
+// 计算周长
 function calculatePerimeter(points) {
     let perimeter = 0;
     
@@ -687,24 +773,25 @@ function calculatePerimeter(points) {
         perimeter += Cesium.Cartesian3.distance(points[i], points[i + 1]);
     }
     
-    // 闂悎杈?    if (points.length >= 3) {
+    // 闭合边
+    if (points.length >= 3) {
         perimeter += Cesium.Cartesian3.distance(points[points.length - 1], points[0]);
     }
     
     return perimeter;
 }
 
-// 璁＄畻闈㈢Н (浣跨敤Cesium鍐呯疆鐨勫杈瑰舰闈㈢Н璁＄畻)
+// 计算面积 (使用Cesium内置的多边形面积计算)
 function calculateArea(points) {
     if (points.length < 3) return 0;
     
-    // 杞崲涓虹粡绾害鍧愭爣
+    // 转换为经纬度坐标
     const positions = points.map(p => {
         const cartographic = Cesium.Cartographic.fromCartesian(p);
         return new Cesium.Cartographic(cartographic.longitude, cartographic.latitude, 0);
     });
     
-    // 浣跨敤鏇村噯纭殑鐞冮潰闈㈢Н璁＄畻
+    // 使用更准确的球面面积计算
     let area = 0;
     const ellipsoid = Cesium.Ellipsoid.WGS84;
     
@@ -714,9 +801,10 @@ function calculateArea(points) {
         const pos1 = ellipsoid.cartographicToCartesian(positions[i]);
         const pos2 = ellipsoid.cartographicToCartesian(positions[j]);
         
-        // 璁＄畻涓ょ偣涔嬮棿鐨勫姬闀?        const distance = Cesium.Cartesian3.distance(pos1, pos2);
+        // 计算两点之间的弧长
+        const distance = Cesium.Cartesian3.distance(pos1, pos2);
         
-        // 浣跨敤姊舰鍏紡绱姞闈㈢Н
+        // 使用梯形公式累加面积
         const lat1 = positions[i].latitude;
         const lat2 = positions[j].latitude;
         const lon1 = positions[i].longitude;
@@ -725,16 +813,17 @@ function calculateArea(points) {
         area += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
     }
     
-    // 杞崲涓哄钩鏂圭背
+    // 转换为平方米
     const radius = ellipsoid.maximumRadius;
     area = Math.abs(area * radius * radius / 2.0);
     
     return area;
 }
 
-// 淇濆瓨澶氳竟褰?function savePolygon() {
+// 保存多边形
+function savePolygon() {
     if (savedPolygons.length === 0) {
-        logMessage('娌℃湁鍙繚瀛樼殑澶氳竟褰?, 'warning');
+        logMessage('没有可保存的多边形', 'warning');
         return;
     }
     
@@ -757,25 +846,26 @@ function calculateArea(points) {
     a.click();
     
     URL.revokeObjectURL(url);
-    logMessage('澶氳竟褰㈠凡淇濆瓨: ' + filename, 'success');
+    logMessage('多边形已保存: ' + filename, 'success');
 }
 
-// 鏄剧ず鍔犺浇妯℃€佹
+// 显示加载模态框
 function showLoadModal() {
     document.getElementById('loadModal').style.display = 'block';
 }
 
-// 鍏抽棴鍔犺浇妯℃€佹
+// 关闭加载模态框
 function closeLoadModal() {
     document.getElementById('loadModal').style.display = 'none';
 }
 
-// 鍔犺浇澶氳竟褰㈡枃浠?function loadPolygonFile() {
+// 加载多边形文件
+function loadPolygonFile() {
     const fileInput = document.getElementById('loadFileInput');
     const file = fileInput.files[0];
     
     if (!file) {
-        logMessage('璇烽€夋嫨鏂囦欢', 'warning');
+        logMessage('请选择文件', 'warning');
         return;
     }
     
@@ -805,7 +895,7 @@ function closeLoadModal() {
                     isPolygon: true,
                     polygonData: {
                         id: polygonCounter,
-                        name: `澶氳竟褰?${polygonCounter}`,
+                        name: `多边形 ${polygonCounter}`,
                         points: polygonData.points,
                         area: area,
                         perimeter: perimeter,
@@ -822,17 +912,18 @@ function closeLoadModal() {
             
             updatePolygonList();
             closeLoadModal();
-            logMessage(`鍔犺浇浜?${data.length} 涓杈瑰舰`, 'success');
+            logMessage(`加载了 ${data.length} 个多边形`, 'success');
             
         } catch (error) {
-            logMessage('鍔犺浇澶辫触: ' + error.message, 'error');
+            logMessage('加载失败: ' + error.message, 'error');
         }
     };
     
     reader.readAsText(file);
 }
 
-// 璁剧疆澶氳竟褰㈤€夋嫨澶勭悊鍣?function setupPolygonSelectionHandler() {
+// 设置多边形选择处理器
+function setupPolygonSelectionHandler() {
     if (handler) {
         handler.destroy();
     }
@@ -850,12 +941,13 @@ function closeLoadModal() {
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
 
-// 閫夋嫨澶氳竟褰?function selectPolygon(polygonEntity) {
+// 选择多边形
+function selectPolygon(polygonEntity) {
     deselectPolygon();
     
     selectedPolygon = polygonEntity;
     
-    // 楂樹寒鏄剧ず
+    // 高亮显示
     const currentColor = polygonEntity.polygon.material.getValue().color;
     polygonEntity.polygon.material = Cesium.Color.fromAlpha(
         Cesium.Color.CYAN,
@@ -863,10 +955,11 @@ function closeLoadModal() {
     );
     
     document.getElementById('deletePolyBtn').disabled = false;
-    logMessage('閫変腑澶氳竟褰?- 闈㈢Н: ' + polygonEntity.polygonData.area.toFixed(2) + ' m虏', 'info');
+    logMessage('选中多边形 - 面积: ' + polygonEntity.polygonData.area.toFixed(2) + ' m²', 'info');
 }
 
-// 鍙栨秷閫夋嫨澶氳竟褰?function deselectPolygon() {
+// 取消选择多边形
+function deselectPolygon() {
     if (selectedPolygon) {
         const fillColor = hexToColor(document.getElementById('fillColor').value);
         fillColor.alpha = parseFloat(document.getElementById('fillOpacity').value) / 100;
@@ -876,7 +969,7 @@ function closeLoadModal() {
     }
 }
 
-// 鍒犻櫎閫変腑鐨勫杈瑰舰
+// 删除选中的多边形
 function deleteSelectedPolygon() {
     if (selectedPolygon) {
         viewer.entities.remove(selectedPolygon);
@@ -886,16 +979,16 @@ function deleteSelectedPolygon() {
         }
         selectedPolygon = null;
         document.getElementById('deletePolyBtn').disabled = true;
-        logMessage('鍒犻櫎澶氳竟褰?, 'info');
+        logMessage('删除多边形', 'info');
     }
 }
 
-// 娓呴櫎鎵€鏈夊杈瑰舰
+// 清除所有多边形
 function clearPolygons() {
     savedPolygons.forEach(polygon => {
         viewer.entities.remove(polygon);
         
-        // 鍒犻櫎鐐瑰拰绾挎瀹炰綋
+        // 删除点和线段实体
         if (polygon.polygonData && polygon.polygonData.pointEntities) {
             polygon.polygonData.pointEntities.forEach(entity => viewer.entities.remove(entity));
         }
@@ -909,10 +1002,10 @@ function clearPolygons() {
     selectedPolygonId = null;
     document.getElementById('deletePolyBtn').disabled = true;
     updatePolygonList();
-    logMessage('娓呴櫎鎵€鏈夊杈瑰舰', 'info');
+    logMessage('清除所有多边形', 'info');
 }
 
-// 棰滆壊杞崲
+// 颜色转换
 function hexToColor(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? new Cesium.Color(
@@ -923,12 +1016,13 @@ function hexToColor(hex) {
     ) : Cesium.Color.WHITE;
 }
 
-// 鏇存柊澶氳竟褰㈠垪琛?function updatePolygonList() {
+// 更新多边形列表
+function updatePolygonList() {
     const listContainer = document.getElementById('polygonList');
     
     if (savedPolygons.length === 0) {
-        listContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa; font-size: 12px;">鏆傛棤澶氳竟褰?/div>';
-        document.getElementById('totalArea').textContent = '鎬婚潰绉? 0 m虏';
+        listContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa; font-size: 12px;">暂无多边形</div>';
+        document.getElementById('totalArea').textContent = '总面积: 0 m²';
         return;
     }
     
@@ -948,9 +1042,9 @@ function hexToColor(hex) {
         item.innerHTML = `
             <div class="polygon-item-info">
                 <div class="polygon-item-name">${data.name}</div>
-                <div class="polygon-item-area">闈㈢Н: ${data.area.toFixed(2)} m虏 | 鍛ㄩ暱: ${data.perimeter.toFixed(2)} m</div>
+                <div class="polygon-item-area">面积: ${data.area.toFixed(2)} m² | 周长: ${data.perimeter.toFixed(2)} m</div>
             </div>
-            <button class="polygon-item-delete" onclick="deletePolygonById(${data.id})">鍒犻櫎</button>
+            <button class="polygon-item-delete" onclick="deletePolygonById(${data.id})">删除</button>
         `;
         
         item.onclick = function(e) {
@@ -962,50 +1056,55 @@ function hexToColor(hex) {
         listContainer.appendChild(item);
     });
     
-    document.getElementById('totalArea').textContent = `鎬婚潰绉? ${totalArea.toFixed(2)} m虏`;
+    document.getElementById('totalArea').textContent = `总面积: ${totalArea.toFixed(2)} m²`;
 }
 
-// 鏍规嵁ID閫夋嫨澶氳竟褰?function selectPolygonById(id) {
-    // 鍙栨秷涔嬪墠鐨勯€夋嫨
+// 根据ID选择多边形
+function selectPolygonById(id) {
+    // 取消之前的选择
     if (selectedPolygonId !== null) {
         const prevPolygon = savedPolygons.find(p => p.polygonData.id === selectedPolygonId);
         if (prevPolygon) {
-            // 鎭㈠鍘熷棰滆壊
+            // 恢复原始颜色
             const color = prevPolygon.polygonData.fillColor.clone();
             color.alpha = prevPolygon.polygonData.originalAlpha;
             prevPolygon.polygon.material = color;
         }
     }
     
-    // 閫夋嫨鏂扮殑澶氳竟褰?    selectedPolygonId = id;
+    // 选择新的多边形
+    selectedPolygonId = id;
     const polygon = savedPolygons.find(p => p.polygonData.id === id);
     
     if (polygon) {
-        // 楂樹寒鏄剧ず - 澧炲姞浜害鍜岄€忔槑搴?        const highlightColor = polygon.polygonData.fillColor.clone();
+        // 高亮显示 - 增加亮度和透明度
+        const highlightColor = polygon.polygonData.fillColor.clone();
         highlightColor.alpha = Math.min(polygon.polygonData.originalAlpha + 0.3, 0.9);
         polygon.polygon.material = highlightColor;
         
-        // 椋炲悜璇ュ杈瑰舰
+        // 飞向该多边形
         viewer.flyTo(polygon, {
             duration: 1.5,
             offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), 500)
         });
         
-        logMessage(`閫変腑 ${polygon.polygonData.name}`, 'info');
+        logMessage(`选中 ${polygon.polygonData.name}`, 'info');
     }
     
     updatePolygonList();
 }
 
-// 鏍规嵁ID鍒犻櫎澶氳竟褰?function deletePolygonById(id) {
+// 根据ID删除多边形
+function deletePolygonById(id) {
     const index = savedPolygons.findIndex(p => p.polygonData.id === id);
     
     if (index !== -1) {
         const polygon = savedPolygons[index];
         
-        // 鍒犻櫎澶氳竟褰㈠疄浣?        viewer.entities.remove(polygon);
+        // 删除多边形实体
+        viewer.entities.remove(polygon);
         
-        // 鍒犻櫎鐐瑰拰绾挎瀹炰綋
+        // 删除点和线段实体
         if (polygon.polygonData.pointEntities) {
             polygon.polygonData.pointEntities.forEach(entity => viewer.entities.remove(entity));
         }
@@ -1013,26 +1112,26 @@ function hexToColor(hex) {
             polygon.polygonData.lineEntities.forEach(entity => viewer.entities.remove(entity));
         }
         
-        // 浠庢暟缁勪腑绉婚櫎
+        // 从数组中移除
         savedPolygons.splice(index, 1);
         
-        // 濡傛灉鍒犻櫎鐨勬槸閫変腑鐨勫杈瑰舰锛屾竻闄ら€夋嫨
+        // 如果删除的是选中的多边形，清除选择
         if (selectedPolygonId === id) {
             selectedPolygonId = null;
         }
         
         updatePolygonList();
-        logMessage(`宸插垹闄?${polygon.polygonData.name}`, 'success');
+        logMessage(`已删除 ${polygon.polygonData.name}`, 'success');
     }
 }
 
-// 鍒囨崲闈㈡澘
+// 切换面板
 function togglePanel() {
     const panel = document.getElementById('controlPanel');
     panel.classList.toggle('collapsed');
 }
 
-// 椤甸潰鍔犺浇鏃跺垵濮嬪寲
+// 页面加载时初始化
 window.onload = function() {
     initCesium();
 };
